@@ -1,0 +1,14 @@
+version: "3"
+
+services:
+  janusgraph:
+    image: janusgraph/janusgraph:latest
+    container_name: janusgraph
+    ports:
+      - "8182:8182"
+    volumes:
+      - "janusgraph-data:/var/lib/janusgraph"
+      - "./air-routes.graphml:/opt/janusgraph/data/air-routes.graphml"
+
+volumes:
+  janusgraph-data:
