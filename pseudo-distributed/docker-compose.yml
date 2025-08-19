@@ -1,0 +1,90 @@
+services:
+
+  zookeeper:
+    image: wurstmeister/zookeeper
+    container_name: jce-zookeeper
+    hostname: zookeeper
+    ports:
+      - "2181:2181"
+    networks:
+      - jce-network
+    volumes:
+      - zookeeper-data:/var/lib/zookeeper/data
+
+  janusgraph:
+    image: janusgraph/janusgraph:latest
+    container_name: jce-janusgraph
+    environment:
+      JANUS_PROPS_TEMPLATE: hbase-es
+      janusgraph.storage.hostname: zookeeper
+      janusgraph.index.search.hostname: jce-elastic
+    volumes:
+      - "janusgraph-default-data:/var/lib/janusgraph"
+      - ./conf:/opt/janusgraph/conf
+      - ./scripts:/opt/janusgraph/scripts
+    ports:
+      - "8182:8182"
+    networks:
+      - jce-network
+
+  hbase:
+    image: lucasmsp/hbase:2.6.0
+    build: ./hbase
+    container_name: jce-hbase
+    ports:
+      - "16000:16000"
+      - "16010:16010" # http://localhost:16010/master-status
+      - "16020:16020"
+      - "16030:16030"
+    networks:
+      - jce-network
+    volumes:
+      - "hbase-data:/data/hbase"
+
+
+  elasticsearch:
+    image: elasticsearch:8.18.4
+    container_name: jce-elastic
+    environment:
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+      - "http.host=0.0.0.0"
+      - "network.host=0.0.0.0"
+      - "transport.host=127.0.0.1"
+      - "cluster.name=docker-cluster"
+      - "xpack.security.enabled=false"
+      - "discovery.type=single-node"
+    ports:
+     - "9200:9200"
+    networks:
+      - jce-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9200"]
+      interval: 10s
+      timeout: 30s
+      retries: 6
+
+  janusgraph-visualizer:
+    image: janusgraph/janusgraph-visualizer:1.0.4
+    container_name: jce-visualizer
+    ports:
+      - "3000:3000"
+      - "3001:3001"
+    networks:
+      - jce-network
+    depends_on:
+      janusgraph:
+        condition: service_healthy
+    environment:
+      - GREMLIN_HOST=jce-janusgraph
+    healthcheck:
+      test: ["CMD", "nc", "-v", "-w", "2", "localhost", "3001"]
+      interval: 10s
+      retries: 3
+
+networks:
+  jce-network:
+
+volumes:
+  janusgraph-default-data:
+  hbase-data:
+  zookeeper-data:
